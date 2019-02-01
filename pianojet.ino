@@ -10,9 +10,13 @@
 #define LOGGING true
 
 //
-// define types
+// definitions & types //////////////////////////////////////////////////////////
 //
 
+//
+// Ribbon
+//
+const byte DEFAULT_RIBBON_VELOCITY = 100;
 struct RibbonControllerSettings {
     uint16_t 
         lastWiperState,
@@ -22,48 +26,165 @@ struct RibbonControllerSettings {
         lastWiperNote,
         windowRadius,
         analogCutoff,
-        analogScaleFactor;
+        analogScaleFactor,
+        
+        velocity01,
+        velocity02,
 
-    bool shouldIPlay;
+        channel01,
+        channel02;
+
+    bool
+        shouldIPlay,
+        pitchBendMode;
 };
+
+//
+// Keypad
+//
 
 const byte KEYPAD_ROWS = 4;
 const byte KEYPAD_COLS = 3;
 const byte KEYPAD_KEYSTROKES = 5;
 struct KeypadControllerSettings {
-    char keys[KEYPAD_ROWS][KEYPAD_COLS];
-    byte rowPins[KEYPAD_ROWS];
-    byte colPins[KEYPAD_COLS];
-    char inputString[KEYPAD_KEYSTROKES];
     uint16_t inputNumber;
     uint8_t inputMenu;
+    char
+        keys[KEYPAD_ROWS][KEYPAD_COLS],
+        inputString[KEYPAD_KEYSTROKES];
+
+    byte 
+        rowPins[KEYPAD_ROWS],
+        colPins[KEYPAD_COLS];
 };
 
+//
+// rotary encoders
+//
+
+const byte ROTARY_COUNT = 4;
+
+// RotaryControllerAdapter
+class RotaryControllerAdapter {
+void voidFn
+public:
+    int16_t defaultValue;
+
+    void processButton(ClickEncoder::Button button);
+    void processValue(int16_t value);
+    void setButtonFn(void (*buttonFn)(ClickEncoder::Button));
+    void setValueFn(void (*valueFn)(int16_t));
+
+    RotaryControllerAdapter();
+    ~RotaryControllerAdapter();
+private:
+    void (*_processButton)(RotaryControllerAdapter, ClickEncoder::Button);
+    void (*_processValue)(RotaryControllerAdapter, int16_t);
+}
+void RotaryControllerAdapter::RotaryControllerAdapter(void (*buttonFn)(ClickEncoder::Button), void (*valueFn)(int16_t), int16_t defaultValue) {
+    this.defaultValue = defaultValue;
+    this->_processButton = buttonFn;
+    this->_processValue = valueFn;
+}
+void RotaryControllerAdapter::setButtonFn(void (*buttonFn)(ClickEncoder::Button)) {
+    this->_processButton = buttonFn;
+}
+void RotaryControllerAdapter::setValueFn(void (*valueFn)(int16_t)) {
+    this->_processValue = valueFn;
+}
+void RotaryControllerAdapter::processButton(ClickEncoder::Button button) {
+    this->_processButton(this, button);
+}
+void RotaryControllerAdapter::processValue(int16_t value) {
+    this->_processValue(this, value);
+}
+
+// RotaryController
+class RotaryController {
+public:
+    uint8_t
+        currentValue,
+        lastValue;
+    RotaryControllerAdapter adapter;
+    ClickEncoder *encoder;
+    void tick();
+    RotaryController();
+    ~RotaryController();
+}
+void RotaryController::RotaryController(uint8_t rotaryPin01, uint8_t rotaryPin02, uint8_t buttonPin, RotaryControllerAdapter adapter) {
+    this->encoder = new ClickEncoder(rotaryPin01, rotaryPin02, buttonPin);
+    this.adapter = adapter;
+}
+void RotaryController::tick() {
+    this.adapter.processValue(this->encoder->getValue());
+    this.adapter.processButton(this->encoder->getButton());
+}
 
 //
-// declarations
+// declarations & initializations //////////////////////////////////////////////////////////
 //
 
 RibbonControllerSettings rSettings;
-KeypadControllerSettings kSettings;
-Keypad * keypad;
-ClickEncoder *encoder;
 
+KeypadControllerSettings kSettings;
+Keypad * keypad = NULL;
+
+void ribbonVelocityButton(RotaryControllerAdapter self, ClickEncoder::Button button) {
+    logger("Rotary button:")
+    switch (button) {
+        case ClickEncoder::Pressed:
+            logger("  Pressed\n");
+        break;
+
+        case ClickEncoder::Held:
+            logger("  Held\n");
+        break;
+
+        case ClickEncoder::Released:
+            logger("  Released\n");
+        break;
+
+        case ClickEncoder::Clicked:
+            logger("  Clicked, setting ribbon velocity to default\n");
+
+            rSettings.velocity01 = self.defaultValue;
+            rSettings.velocity02 = self.defaultValue;
+
+            logger("Velocity 01 new value: "); logger(rSettings.velocity01); logger("\n");
+            logger("Velocity 02 new value: "); logger(rSettings.velocity02); logger("\n");
+        break;
+
+        case ClickEncoder::DoubleClicked:
+            logger("  DoubleClicked\n");
+        break;
+    }
+}
+void ribbonVelocityValue(RotaryControllerAdapter self, int16_t value) {
+    logger(sprintf("Rotary value: %d\n", value));
+
+    int16_t newValue = self.defaultValue + value;
+    if (newValue < 0) { newValue = 0;}
+    if (newValue > 127) { newValue = 127;}
+
+    rSettings.velocity01 = newValue;
+    rSettings.velocity02 = newValue;
+
+    logger("Velocity 01 new value: "); logger(rSettings.velocity01); logger("\n");
+    logger("Velocity 02 new value: "); logger(rSettings.velocity02); logger("\n");
+
+}
+RotaryControllerAdapter ribbonAdapter(ribbonVelocityButton, ribbonVelocityValue, 100);
+RotaryController *rotary[ROTARY_COUNT] = {NULL, NULL, NULL, NULL};
 
 #ifndef LOGGING
 MIDI_CREATE_DEFAULT_INSTANCE();
 #endif
 
-
 void pianojetInit() {
-    rSettings.lastWiperState = 1023;
-    rSettings.analogOffset = 1000;
-    rSettings.lastWiperNote = 0;
-    rSettings.windowRadius = 10;
-    rSettings.analogCutoff = 20;
-    rSettings.analogScaleFactor = 10;
-    rSettings.shouldIPlay = false;
+    // ribbon settings
+    resetRibbonStateNoteMode();
 
+    // keypad settings
     kSettings.keys[0][0] = '1';
     kSettings.keys[0][1] = '2';
     kSettings.keys[0][2] = '3';
@@ -90,10 +211,23 @@ void pianojetInit() {
     kSettings.rowPins[6] = 8;
 
     resetKeypadState();
+    if (keypad) {
+        delete keypad;
+    }
     keypad = new Keypad( makeKeymap(kSettings.keys), kSettings.rowPins, kSettings.colPins, KEYPAD_ROWS, KEYPAD_COLS );
 
+    // rotary settings
+    for (int r = 0; r < ROTARY_COUNT; c++) {
+        if (rotary[r]) {
+            delete rotary[r];
+        }
+    }
+    rotary[0] = new RotaryController(A1, A0, A2, ribbonAdapter);
 }
 
+//
+// arduino setup & loop  //////////////////////////////////////////////////////////
+//
 
 void setup()
 {
@@ -105,7 +239,7 @@ void setup()
     midiBegin();
 
     allOff();
-    // Serial.println(rSettings);
+
     logger(rSettings);
 
 }
@@ -121,9 +255,18 @@ void loop()
         processKey(key);
     }
 
+    //
+    // rotary
+    //
+
+    for (int r = 0; r < ROTARY_COUNT; c++) {
+        if (rotary[r]) {
+            rotary[r]->tick();
+        }
+    }
 
     //
-    // wiper
+    // ribbon
     //
 
     int reading = readWiper();
@@ -131,7 +274,7 @@ void loop()
 }
 
 //
-// util
+// util  /////////////////////////////////////////////////////////////////////
 //
 
 void logger(const char * s) {
@@ -141,6 +284,12 @@ void logger(const char * s) {
 }
 
 void logger(const char s) {
+    #ifdef LOGGING
+    Serial.print(s);
+    #endif
+}
+
+void logger(const bool b) {
     #ifdef LOGGING
     Serial.print(s);
     #endif
@@ -192,52 +341,117 @@ void logger(const KeypadControllerSettings n) {
     #endif
 }
 
+
 //
-// wiper service
+// ribbon service    //////////////////////////////////////////////////////////
 //
+
+void resetRibbonStateNoteMode() {
+    rSettings.lastWiperState = 1023;
+    rSettings.analogOffset = 1000;
+    rSettings.lastWiperNote = 0;
+    rSettings.windowRadius = 10;
+    rSettings.analogCutoff = 20;
+    rSettings.analogScaleFactor = 10;
+    rSettings.shouldIPlay = false;
+
+    rSettings.velocity01 = DEFAULT_RIBBON_VELOCITY;
+    rSettings.velocity02 = DEFAULT_RIBBON_VELOCITY;
+    rSettings.channel01 = 1;
+    rSettings.channel02 = 2;
+
+    rSettings.pitchBendMode = false;
+}
+
+void resetRibbonStatePitchBendMode() {
+    rSettings.lastWiperState = 1023;
+    rSettings.analogOffset = 1000;
+    rSettings.lastWiperNote = 0;
+    rSettings.windowRadius = 10;
+    rSettings.analogCutoff = 20;
+    rSettings.analogScaleFactor = 10;
+    rSettings.shouldIPlay = false;
+
+    rSettings.velocity01 = DEFAULT_RIBBON_VELOCITY;
+    rSettings.velocity02 = DEFAULT_RIBBON_VELOCITY;
+    rSettings.channel01 = 1;
+    rSettings.channel02 = 2;
+
+    rSettings.pitchBendMode = true;
+}
 
 int readWiper() {
     return analogRead(POTPIN);
 }
 
+int scaleReadingNote(unsigned int reading) {
+    return (int)(reading * 0.125); // 128 / 1016
+}
+
+int scaleReadingPitchBend(unsigned int reading) {
+    return map(reading, 0, 1015, 0, 127);
+}
+
 void playWiper(unsigned int reading) {
 
-    int localNote = scaleReading(reading);
+    // pitchbend mode
+    if (rSettings.pitchBendMode) {
 
-    if (reading > rSettings.analogCutoff) {
+        int localNote = scaleReadingPitchBend(reading);
 
-        if (localNote != rSettings.lastWiperNote) {
-            noteOff(rSettings.lastWiperNote);
-            noteOn(localNote);
-            rSettings.shouldIPlay = false;
+        // if (reading > rSettings.analogCutoff) {
 
-            rSettings.lastWiperNote = localNote;
-        } 
+        //     if (localNote != rSettings.lastWiperNote) {
+        //         noteOff(rSettings.lastWiperNote);
+        //         noteOn(localNote);
+        //         rSettings.shouldIPlay = false;
 
-        rSettings.lastWiperState = reading;
+        //         rSettings.lastWiperNote = localNote;
+        //     } 
 
+        //     rSettings.lastWiperState = reading;
+
+        // } else {
+
+        //     if (rSettings.shouldIPlay == false) {
+        //         noteOff(rSettings.lastWiperNote);
+        //         rSettings.shouldIPlay = true;
+        //     }
+        // }
+
+    // note mode
     } else {
 
-        if (rSettings.shouldIPlay == false) {
-            noteOff(rSettings.lastWiperNote);
-            rSettings.shouldIPlay = true;
+        int localNote = scaleReadingNote(reading);
+
+        if (reading > rSettings.analogCutoff) {
+
+            if (localNote != rSettings.lastWiperNote) {
+                noteOff(rSettings.lastWiperNote);
+                noteOn(localNote);
+                rSettings.shouldIPlay = false;
+
+                rSettings.lastWiperNote = localNote;
+            } 
+
+            rSettings.lastWiperState = reading;
+
+        } else {
+
+            if (rSettings.shouldIPlay == false) {
+                noteOff(rSettings.lastWiperNote);
+                rSettings.shouldIPlay = true;
+            }
         }
     }
-
 }
 
 bool inWindow(unsigned int reading) {
     return (abs(rSettings.lastWiperState - reading) > rSettings.windowRadius);
 }
 
-int scaleReading(unsigned int reading) {
-    return (int)(reading * 0.125); // 128 / 1016
-}
-
-
-
 //
-// keypad service
+// keypad service    //////////////////////////////////////////////////////////
 //
 
 void resetKeypadState() {
@@ -258,7 +472,7 @@ uint16_t addZeroDigit(uint16_t number) {
     // could do a recursion trick here
 
     // sprintf(str, "%d", (int)number);
-    sprintf(str1, "%d%0", (int)number);
+    sprintf(str1, "%d0", (int)number);
     logger("  str1: ");
     logger(str1);
 
@@ -293,8 +507,6 @@ void processKey(char key) {
 
     logger("  commandPlace: ");
     logger(commandPlace);
-
-
 
     switch (key)
     {
@@ -335,16 +547,13 @@ void processKey(char key) {
         // do something on individual number press
         switch (kSettings.inputNumber)
         {
-            // case 0:
-            // case 1:
-            // case 2:
-            //     // handle
-            //     break;
+            case 0:
+                if (rSettings.pitchBendMode) { resetRibbonStateNoteMode(); } else { resetRibbonStatePitchBendMode(); }
+                logger("Toggling ribbon pitchBendMode to: "); logger(rSettings.pitchBendMode); logger("\n");
+            break;
 
-            // case '#':
-            //     logger("RESET\n");
-            //     return resetKeypadState();
-            //     break;
+            case 1:
+            break;
 
             default:
                 break;
@@ -358,10 +567,13 @@ void processKey(char key) {
 
 }
 
+//
+// rotary service    //////////////////////////////////////////////////////////
+//
 
 
 //
-// actual midi handlers
+// midi delegates & handlers    //////////////////////////////////////////////////////////
 //
 
 void midiBegin() {
@@ -396,7 +608,6 @@ void noteOn(unsigned int noteNumber) {
     logger(noteNumber);
     logger("\n");
 }
-
 
 void noteOff(unsigned int noteNumber) {
     #ifndef LOGGING
