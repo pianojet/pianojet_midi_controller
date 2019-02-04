@@ -21,39 +21,45 @@
 //
 // Trellis
 //
-//create a matrix of trellis panels
-// Adafruit_NeoTrellis t_array[Y_TRELLIS/4][X_TRELLIS/4] = {
-  
-//   { Adafruit_NeoTrellis(0x2E), Adafruit_NeoTrellis(0x2F) }
-  
-// };
-// Adafruit_MultiTrellis trellis((Adafruit_NeoTrellis *)t_array, Y_TRELLIS/4, X_TRELLIS/4);
 
-// // Input a value 0 to 255 to get a color value.
-// // The colors are a transition r - g - b - back to r.
-// uint32_t Wheel(byte WheelPos) {
-//   if(WheelPos < 85) {
-//    return seesaw_NeoPixel::Color(WheelPos * 3, 255 - WheelPos * 3, 0);
-//   } else if(WheelPos < 170) {
-//    WheelPos -= 85;
-//    return seesaw_NeoPixel::Color(255 - WheelPos * 3, 0, WheelPos * 3);
-//   } else {
-//    WheelPos -= 170;
-//    return seesaw_NeoPixel::Color(0, WheelPos * 3, 255 - WheelPos * 3);
-//   }
-//   return 0;
-// }
-
-// void trellisKeypress(keyEvent evt) {
+// create a matrix of trellis panels
+Adafruit_NeoTrellis t_array[Y_TRELLIS/4][X_TRELLIS/4] = {
   
-//     if(evt.bit.EDGE == SEESAW_KEYPAD_EDGE_RISING)
-//         trellis.setPixelColor(evt.bit.NUM, Wheel(map(evt.bit.NUM, 0, X_TRELLIS*Y_TRELLIS, 0, 255))); //on rising
-//     else if(evt.bit.EDGE == SEESAW_KEYPAD_EDGE_FALLING)
-//         trellis.setPixelColor(evt.bit.NUM, 0); //off falling
+  { Adafruit_NeoTrellis(0x2E), Adafruit_NeoTrellis(0x2F) }
+  
+};
+Adafruit_MultiTrellis trellis((Adafruit_NeoTrellis *)t_array, Y_TRELLIS/4, X_TRELLIS/4);
+const byte TRELLIS_MODE_COUNT = 7;
+const byte TRELLIS_STANDBY = 0;
+const byte TRELLIS_TOGGLE = 1;
+const byte TRELLIS_LOOP_OFF = 2;
+const byte TRELLIS_LOOP_CUED = 3;
+const byte TRELLIS_TRIGGER_OFF = 4;
+const byte TRELLIS_TRIGGER_CUED = 5;
+const byte TRELLIS_PRESSED_ON = 6;
+const byte TRELLIS_PRESSED_OFF = 7;
 
-//     trellis.show();
-//     return 0;
-// }
+
+const uint32_t RED = 0xFF0000;
+const uint32_t GREEN = 0x00FF00;
+const uint32_t LIGHTGREEN = 0xC8FFC8;
+const uint32_t DARKGREEN = 0x005500;
+const uint32_t BLUE = 0x0000FF;
+const uint32_t LIGHTBLUE = 0x000055;
+const uint32_t YELLOW = 0xFFFF00;
+const uint32_t TEAL = 0x00FFFF;
+const uint32_t PURPLE = 0xFF00FF;
+const uint32_t ORANGE = 0xFFA500;
+
+uint32_t colorMap[TRELLIS_MODE_COUNT];
+
+uint8_t trellisModeMatrix[Y_TRELLIS][X_TRELLIS] = {
+    {TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY},
+    {TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY},
+    {TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY},
+    {TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY}
+};
+
 
 //
 // Ribbon
@@ -284,6 +290,16 @@ MIDI_CREATE_DEFAULT_INSTANCE();
 #endif
 
 void pianojetInit() {
+    // trellis
+    colorMap[TRELLIS_STANDBY] = LIGHTGREEN;
+    colorMap[TRELLIS_TOGGLE] = DARKGREEN;
+    colorMap[TRELLIS_LOOP_OFF] = BLUE;
+    colorMap[TRELLIS_LOOP_CUED] = PURPLE;
+    colorMap[TRELLIS_TRIGGER_OFF] = RED;
+    colorMap[TRELLIS_TRIGGER_CUED] = ORANGE;
+    colorMap[TRELLIS_PRESSED_ON] = YELLOW;
+    colorMap[TRELLIS_PRESSED_OFF] = LIGHTGREEN;
+
     // ribbon settings
     resetRibbonStateNoteMode();
 
@@ -349,6 +365,8 @@ void timerIsr() {
     }
 }
 
+
+
 void setup()
 {
     Serial.begin(9600);
@@ -362,22 +380,32 @@ void setup()
 
     logger(rSettings);
 
-    // if(!trellis.begin()){
-    //     logger("failed to begin trellis");
-    //     while(1);
-    // }
+    if(!trellis.begin()){
+        logger("failed to begin trellis");
+        while(1);
+    } else {
+        logger("Trellis online.\n");
+    }
 
-    // for(int y=0; y<Y_TRELLIS; y++){
-    //     for(int x=0; x<X_TRELLIS; x++){
-    //         //activate rising and falling edges on all keys
-    //         trellis.activateKey(x, y, SEESAW_KEYPAD_EDGE_RISING, true);
-    //         trellis.activateKey(x, y, SEESAW_KEYPAD_EDGE_FALLING, true);
-    //         trellis.registerCallback(x, y, trellisKeypress);
-    //         trellis.setPixelColor(x, y, 0x000000); //addressed with x,y
-    //         trellis.show(); //show all LEDs
-    //         delay(50);
-    //     }
-    // }
+    // the array can be addressed as x,y or with the key number */
+    for(int i=0; i<Y_TRELLIS*X_TRELLIS; i++){
+        trellis.setPixelColor(i, Wheel(map(i, 0, X_TRELLIS*Y_TRELLIS, 0, 255))); //addressed with keynum
+        trellis.show();
+        delay(50);
+    }
+
+    for(int y=0; y<Y_TRELLIS; y++){
+        for(int x=0; x<X_TRELLIS; x++){
+            //activate rising and falling edges on all keys
+            trellis.activateKey(x, y, SEESAW_KEYPAD_EDGE_RISING, true);
+            trellis.activateKey(x, y, SEESAW_KEYPAD_EDGE_FALLING, true);
+            trellis.registerCallback(x, y, trellisKeypress);
+            trellis.setPixelColor(x, y, getColor(x, y)); //addressed with x,y
+            // trellis.setPixelColor(x, y, 0x000000); //addressed with x,y
+            trellis.show(); //show all LEDs
+            delay(50);
+        }
+    }
 
     Timer1.initialize(1000);
     Timer1.attachInterrupt(timerIsr);
@@ -391,7 +419,7 @@ void loop()
     // trellis
     //
 
-    // trellis.read();
+    trellis.read();
 
     //
     // keypad
@@ -460,6 +488,12 @@ void logger(const int16_t n) {
     #endif
 }
 
+void logger(const unsigned long n) {
+    #ifdef LOGGING
+    Serial.print(n);
+    #endif
+}
+
 void logger(const unsigned int n) {
     #ifdef LOGGING
     Serial.print(n);
@@ -488,7 +522,95 @@ void logger(const KeypadControllerSettings n) {
     #endif
 }
 
+//
+// trellis service
+//
 
+uint32_t getColor(uint16_t n) {
+    uint8_t x = n % (X_TRELLIS);
+    uint8_t y = n / (X_TRELLIS);
+
+    return colorMap[trellisModeMatrix[y][x]];
+}
+
+uint32_t getColor(uint8_t x, uint8_t y) {
+    logger("getColor, x:"); logger(x); logger(" y:"); logger(y);
+    uint32_t color = colorMap[trellisModeMatrix[y][x]];
+    logger("Color: "); logger(color); logger("\n");
+    return colorMap[trellisModeMatrix[y][x]];
+}
+
+// uint8_t getTrellisMode(uint16_t n) {
+//     uint8_t x = n % (X_TRELLIS);
+//     uint8_t y = n / (X_TRELLIS);
+
+//     return trellisModeMatrix[y][x];
+// }
+// uint8_t getTrellisMode(uint8_t x, uint8_t y) {
+//     return trellisModeMatrix[y][x];
+// }
+
+// void setTrellisMode(uint8_t mode, uint16_t n) {
+//     uint8_t x = n % (X_TRELLIS);
+//     uint8_t y = n / (X_TRELLIS);
+//     trellisModeMatrix[y][x] = mode;
+// }
+
+// Input a value 0 to 255 to get a color value.
+// The colors are a transition r - g - b - back to r.
+uint32_t Wheel(byte WheelPos) {
+  if(WheelPos < 85) {
+   return seesaw_NeoPixel::Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+  } else if(WheelPos < 170) {
+   WheelPos -= 85;
+   return seesaw_NeoPixel::Color(255 - WheelPos * 3, 0, WheelPos * 3);
+  } else {
+   WheelPos -= 170;
+   return seesaw_NeoPixel::Color(0, WheelPos * 3, 255 - WheelPos * 3);
+  }
+  return 0;
+}
+
+void trellisKeypress(keyEvent evt) {
+    // logger("Trellis, evt.bit.NUM: "); logger(evt.bit.NUM); logger(" x:"); logger(x); logger(" y:"); logger(y); logger("\n");
+    // logger("Trellis, evt.bit.NUM: "); logger(evt.bit.NUM); logger("\n");
+    // logger("\tactivating: ");
+
+    // switch (getTrellisMode(evt.bit.NUM))
+    // {
+    //     case (TRELLIS_STANDBY):
+    //         if(evt.bit.EDGE == SEESAW_KEYPAD_EDGE_RISING) {
+    //             logger(" TRELLIS_TOGGLE");
+    //             setTrellisMode(TRELLIS_TOGGLE, evt.bit.NUM);
+    //             trellis.setPixelColor(evt.bit.NUM, getTrellisMode(evt.bit.NUM));
+    //         }
+
+    //         else if(evt.bit.EDGE == SEESAW_KEYPAD_EDGE_FALLING) {
+    //             logger(" TRELLIS_STANDBY");
+    //             setTrellisMode(TRELLIS_STANDBY, evt.bit.NUM);
+    //             trellis.setPixelColor(evt.bit.NUM, getTrellisMode(evt.bit.NUM));
+    //         }
+
+    //         break;            
+    //     default:
+    //         if(evt.bit.EDGE == SEESAW_KEYPAD_EDGE_RISING)
+    //             logger(" DEFAULT PRESSED");
+    //         else
+    //             logger(" DEFAULT RELEASED");
+    //         break;
+    // }
+
+    logger("\n");
+
+    if(evt.bit.EDGE == SEESAW_KEYPAD_EDGE_RISING)
+
+        trellis.setPixelColor(evt.bit.NUM, Wheel(map(evt.bit.NUM, 0, X_TRELLIS*Y_TRELLIS, 0, 255))); //on rising
+    else if(evt.bit.EDGE == SEESAW_KEYPAD_EDGE_FALLING)
+        trellis.setPixelColor(evt.bit.NUM, 0); //off falling
+
+    trellis.show();
+    return 0;
+}
 //
 // ribbon service    //////////////////////////////////////////////////////////
 //
