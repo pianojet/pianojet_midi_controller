@@ -1,22 +1,66 @@
 #include <Arduino.h>
 #include <Key.h>
 #include <Keypad.h>
+#include <Adafruit_NeoTrellis.h>
 
 #include <ClickEncoder.h>
+#include <TimerOne.h>
 #include <MIDI.h>
 
-#define POTPIN 14  //wiper
 
+#define POTPIN 14  //wiper
 #define LOGGING true
+
+#define Y_TRELLIS 4
+#define X_TRELLIS 8
 
 //
 // definitions & types //////////////////////////////////////////////////////////
 //
 
 //
+// Trellis
+//
+//create a matrix of trellis panels
+// Adafruit_NeoTrellis t_array[Y_TRELLIS/4][X_TRELLIS/4] = {
+  
+//   { Adafruit_NeoTrellis(0x2E), Adafruit_NeoTrellis(0x2F) }
+  
+// };
+// Adafruit_MultiTrellis trellis((Adafruit_NeoTrellis *)t_array, Y_TRELLIS/4, X_TRELLIS/4);
+
+// // Input a value 0 to 255 to get a color value.
+// // The colors are a transition r - g - b - back to r.
+// uint32_t Wheel(byte WheelPos) {
+//   if(WheelPos < 85) {
+//    return seesaw_NeoPixel::Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+//   } else if(WheelPos < 170) {
+//    WheelPos -= 85;
+//    return seesaw_NeoPixel::Color(255 - WheelPos * 3, 0, WheelPos * 3);
+//   } else {
+//    WheelPos -= 170;
+//    return seesaw_NeoPixel::Color(0, WheelPos * 3, 255 - WheelPos * 3);
+//   }
+//   return 0;
+// }
+
+// void trellisKeypress(keyEvent evt) {
+  
+//     if(evt.bit.EDGE == SEESAW_KEYPAD_EDGE_RISING)
+//         trellis.setPixelColor(evt.bit.NUM, Wheel(map(evt.bit.NUM, 0, X_TRELLIS*Y_TRELLIS, 0, 255))); //on rising
+//     else if(evt.bit.EDGE == SEESAW_KEYPAD_EDGE_FALLING)
+//         trellis.setPixelColor(evt.bit.NUM, 0); //off falling
+
+//     trellis.show();
+//     return 0;
+// }
+
+//
 // Ribbon
 //
 const byte DEFAULT_RIBBON_VELOCITY = 100;
+const byte DEFAULT_RIBBON_NOOP = 0;
+
 struct RibbonControllerSettings {
     uint16_t 
         lastWiperState,
@@ -66,8 +110,10 @@ const byte ROTARY_COUNT = 4;
 
 // RotaryControllerAdapter
 class RotaryControllerAdapter {
-void voidFn
+
 public:
+    RotaryControllerAdapter(void (*buttonFn)(ClickEncoder::Button), void (*valueFn)(int16_t), int16_t defaultValue);
+    uint8_t id;
     int16_t defaultValue;
 
     void processButton(ClickEncoder::Button button);
@@ -75,14 +121,14 @@ public:
     void setButtonFn(void (*buttonFn)(ClickEncoder::Button));
     void setValueFn(void (*valueFn)(int16_t));
 
-    RotaryControllerAdapter();
     ~RotaryControllerAdapter();
 private:
-    void (*_processButton)(RotaryControllerAdapter, ClickEncoder::Button);
-    void (*_processValue)(RotaryControllerAdapter, int16_t);
-}
-void RotaryControllerAdapter::RotaryControllerAdapter(void (*buttonFn)(ClickEncoder::Button), void (*valueFn)(int16_t), int16_t defaultValue) {
-    this.defaultValue = defaultValue;
+    void (*_processButton)(RotaryControllerAdapter*, ClickEncoder::Button);
+    void (*_processValue)(RotaryControllerAdapter*, int16_t);
+};
+
+RotaryControllerAdapter::RotaryControllerAdapter(void (*buttonFn)(ClickEncoder::Button), void (*valueFn)(int16_t), int16_t defaultValue) {
+    this->defaultValue = defaultValue;
     this->_processButton = buttonFn;
     this->_processValue = valueFn;
 }
@@ -98,26 +144,50 @@ void RotaryControllerAdapter::processButton(ClickEncoder::Button button) {
 void RotaryControllerAdapter::processValue(int16_t value) {
     this->_processValue(this, value);
 }
+RotaryControllerAdapter::~RotaryControllerAdapter() {
+}
+
 
 // RotaryController
 class RotaryController {
 public:
+    RotaryController(uint8_t, uint8_t, uint8_t, RotaryControllerAdapter*);
     uint8_t
+        id,
         currentValue,
         lastValue;
-    RotaryControllerAdapter adapter;
+    ClickEncoder::Button
+        currentButton,
+        lastButton;
+    RotaryControllerAdapter * adapter;
     ClickEncoder *encoder;
     void tick();
-    RotaryController();
     ~RotaryController();
-}
-void RotaryController::RotaryController(uint8_t rotaryPin01, uint8_t rotaryPin02, uint8_t buttonPin, RotaryControllerAdapter adapter) {
+};
+RotaryController::RotaryController(uint8_t rotaryPin01, uint8_t rotaryPin02, uint8_t buttonPin, RotaryControllerAdapter * adapter) {
+    this->id = rotaryPin01;
     this->encoder = new ClickEncoder(rotaryPin01, rotaryPin02, buttonPin);
-    this.adapter = adapter;
+    this->adapter = adapter;
+    this->adapter->id = this->id;
+    this->currentButton = NULL;
+    this->lastButton = NULL;
 }
 void RotaryController::tick() {
-    this.adapter.processValue(this->encoder->getValue());
-    this.adapter.processButton(this->encoder->getButton());
+    this->currentValue = this->encoder->getValue();
+    if (this->currentValue != this->lastValue) {
+        this->adapter->processValue(this->currentValue);
+        this->lastValue = this->currentValue;
+    }
+
+    this->currentButton = this->encoder->getButton();
+    if (this->currentButton != ClickEncoder::Open) {
+        this->adapter->processButton(this->currentButton);
+        this->lastButton = this->currentButton;
+    }
+}
+RotaryController::~RotaryController() {
+    delete this->adapter;
+    delete this->encoder;
 }
 
 //
@@ -129,8 +199,36 @@ RibbonControllerSettings rSettings;
 KeypadControllerSettings kSettings;
 Keypad * keypad = NULL;
 
+void ribbonNOOPButton(RotaryControllerAdapter self, ClickEncoder::Button button) {
+    logger("Rotary ");logger(self.id);logger(" (NOOP) button: ");
+    switch (button) {
+        case ClickEncoder::Pressed:
+            logger("  Pressed\n");
+        break;
+
+        case ClickEncoder::Held:
+            logger("  Held\n");
+        break;
+
+        case ClickEncoder::Released:
+            logger("  Released\n");
+        break;
+
+        case ClickEncoder::Clicked:
+            logger("  Clicked\n");
+        break;
+
+        case ClickEncoder::DoubleClicked:
+            logger("  DoubleClicked\n");
+        break;
+    }
+}
+void ribbonNOOPValue(RotaryControllerAdapter self, int16_t value) {
+    logger("Rotary ");logger(self.id);logger(" (NOOP) value: ");logger(value); logger("\n");
+}
+
 void ribbonVelocityButton(RotaryControllerAdapter self, ClickEncoder::Button button) {
-    logger("Rotary button:")
+    logger("Rotary ");logger(self.id);logger(" button: ");
     switch (button) {
         case ClickEncoder::Pressed:
             logger("  Pressed\n");
@@ -160,21 +258,26 @@ void ribbonVelocityButton(RotaryControllerAdapter self, ClickEncoder::Button but
     }
 }
 void ribbonVelocityValue(RotaryControllerAdapter self, int16_t value) {
-    logger(sprintf("Rotary value: %d\n", value));
+    logger("Rotary ");logger(self.id);logger(" value: ");logger(value); logger("\n");
 
-    int16_t newValue = self.defaultValue + value;
-    if (newValue < 0) { newValue = 0;}
-    if (newValue > 127) { newValue = 127;}
+    rSettings.velocity01 += value;
+    rSettings.velocity02 += value;
 
-    rSettings.velocity01 = newValue;
-    rSettings.velocity02 = newValue;
+    if (rSettings.velocity01 < 0) { rSettings.velocity01 = 0;}
+    if (rSettings.velocity01 > 127) { rSettings.velocity01 = 127;}
+
+    if (rSettings.velocity02 < 0) { rSettings.velocity02 = 0;}
+    if (rSettings.velocity02 > 127) { rSettings.velocity02 = 127;}
 
     logger("Velocity 01 new value: "); logger(rSettings.velocity01); logger("\n");
     logger("Velocity 02 new value: "); logger(rSettings.velocity02); logger("\n");
-
 }
-RotaryControllerAdapter ribbonAdapter(ribbonVelocityButton, ribbonVelocityValue, 100);
+RotaryControllerAdapter *ribbonAdapterRibbonVelocity = NULL;
+RotaryControllerAdapter *ribbonAdapterNOOP01 = NULL;
+RotaryControllerAdapter *ribbonAdapterNOOP02 = NULL;
+RotaryControllerAdapter *ribbonAdapterNOOP03 = NULL;
 RotaryController *rotary[ROTARY_COUNT] = {NULL, NULL, NULL, NULL};
+
 
 #ifndef LOGGING
 MIDI_CREATE_DEFAULT_INSTANCE();
@@ -217,17 +320,34 @@ void pianojetInit() {
     keypad = new Keypad( makeKeymap(kSettings.keys), kSettings.rowPins, kSettings.colPins, KEYPAD_ROWS, KEYPAD_COLS );
 
     // rotary settings
-    for (int r = 0; r < ROTARY_COUNT; c++) {
+    for (int r = 0; r < ROTARY_COUNT; r++) {
         if (rotary[r]) {
             delete rotary[r];
         }
     }
-    rotary[0] = new RotaryController(A1, A0, A2, ribbonAdapter);
+    ribbonAdapterRibbonVelocity = new RotaryControllerAdapter(ribbonVelocityButton, ribbonVelocityValue, DEFAULT_RIBBON_VELOCITY);
+    ribbonAdapterNOOP01 = new RotaryControllerAdapter(ribbonNOOPButton, ribbonNOOPValue, DEFAULT_RIBBON_NOOP);
+    ribbonAdapterNOOP02 = new RotaryControllerAdapter(ribbonNOOPButton, ribbonNOOPValue, DEFAULT_RIBBON_NOOP);
+    ribbonAdapterNOOP03 = new RotaryControllerAdapter(ribbonNOOPButton, ribbonNOOPValue, DEFAULT_RIBBON_NOOP);
+    rotary[0] = new RotaryController(A0, A1, A2, ribbonAdapterRibbonVelocity);
+    rotary[1] = new RotaryController(A3, A4, A5, ribbonAdapterNOOP01);
+    rotary[2] = new RotaryController(A8, A9, A10, ribbonAdapterNOOP02);
+    rotary[3] = new RotaryController(A11, A12, A13, ribbonAdapterNOOP03);
 }
 
 //
 // arduino setup & loop  //////////////////////////////////////////////////////////
 //
+
+
+int16_t last, value;
+void timerIsr() {
+    for (int r = 0; r < ROTARY_COUNT; r++) {
+        if (rotary[r]) {
+            rotary[r]->encoder->service();
+        }
+    }
+}
 
 void setup()
 {
@@ -242,10 +362,37 @@ void setup()
 
     logger(rSettings);
 
+    // if(!trellis.begin()){
+    //     logger("failed to begin trellis");
+    //     while(1);
+    // }
+
+    // for(int y=0; y<Y_TRELLIS; y++){
+    //     for(int x=0; x<X_TRELLIS; x++){
+    //         //activate rising and falling edges on all keys
+    //         trellis.activateKey(x, y, SEESAW_KEYPAD_EDGE_RISING, true);
+    //         trellis.activateKey(x, y, SEESAW_KEYPAD_EDGE_FALLING, true);
+    //         trellis.registerCallback(x, y, trellisKeypress);
+    //         trellis.setPixelColor(x, y, 0x000000); //addressed with x,y
+    //         trellis.show(); //show all LEDs
+    //         delay(50);
+    //     }
+    // }
+
+    Timer1.initialize(1000);
+    Timer1.attachInterrupt(timerIsr);
+    last = -1;
+
 }
 
 void loop()
 {
+    //
+    // trellis
+    //
+
+    // trellis.read();
+
     //
     // keypad
     //
@@ -259,7 +406,7 @@ void loop()
     // rotary
     //
 
-    for (int r = 0; r < ROTARY_COUNT; c++) {
+    for (int r = 0; r < ROTARY_COUNT; r++) {
         if (rotary[r]) {
             rotary[r]->tick();
         }
@@ -291,7 +438,7 @@ void logger(const char s) {
 
 void logger(const bool b) {
     #ifdef LOGGING
-    Serial.print(s);
+    Serial.print(b);
     #endif
 }
 
@@ -307,7 +454,7 @@ void logger(const uint8_t n) {
     #endif
 }
 
-void logger(const long n) {
+void logger(const int16_t n) {
     #ifdef LOGGING
     Serial.print(n);
     #endif
