@@ -9,7 +9,7 @@
 
 
 #define POTPIN 14  //wiper
-#define LOGGING true
+// #define LOGGING true
 
 #define Y_TRELLIS 4
 #define X_TRELLIS 8
@@ -78,11 +78,14 @@ struct RibbonControllerSettings {
         analogCutoff,
         analogScaleFactor,
         
-        velocity01,
-        velocity02,
+        velocityLeft,
+        velocityRight,
 
-        channel01,
-        channel02;
+        channelLeft,
+        channelRight,
+
+        customLeft,
+        customRight;
 
     bool
         shouldIPlay,
@@ -251,11 +254,11 @@ void ribbonVelocityButton(RotaryControllerAdapter self, ClickEncoder::Button but
         case ClickEncoder::Clicked:
             logger("  Clicked, setting ribbon velocity to default\n");
 
-            rSettings.velocity01 = self.defaultValue;
-            rSettings.velocity02 = self.defaultValue;
+            rSettings.velocityLeft = self.defaultValue;
+            rSettings.velocityRight = self.defaultValue;
 
-            logger("Velocity 01 new value: "); logger(rSettings.velocity01); logger("\n");
-            logger("Velocity 02 new value: "); logger(rSettings.velocity02); logger("\n");
+            logger("Velocity 01 new value: "); logger(rSettings.velocityLeft); logger("\n");
+            logger("Velocity 02 new value: "); logger(rSettings.velocityRight); logger("\n");
         break;
 
         case ClickEncoder::DoubleClicked:
@@ -266,17 +269,17 @@ void ribbonVelocityButton(RotaryControllerAdapter self, ClickEncoder::Button but
 void ribbonVelocityValue(RotaryControllerAdapter self, int16_t value) {
     logger("Rotary ");logger(self.id);logger(" value: ");logger(value); logger("\n");
 
-    rSettings.velocity01 += value;
-    rSettings.velocity02 += value;
+    rSettings.velocityLeft += value;
+    rSettings.velocityRight += value;
 
-    if (rSettings.velocity01 < 0) { rSettings.velocity01 = 0;}
-    if (rSettings.velocity01 > 127) { rSettings.velocity01 = 127;}
+    if (rSettings.velocityLeft < 0) { rSettings.velocityLeft = 0;}
+    if (rSettings.velocityLeft > 127) { rSettings.velocityLeft = 127;}
 
-    if (rSettings.velocity02 < 0) { rSettings.velocity02 = 0;}
-    if (rSettings.velocity02 > 127) { rSettings.velocity02 = 127;}
+    if (rSettings.velocityRight < 0) { rSettings.velocityRight = 0;}
+    if (rSettings.velocityRight > 127) { rSettings.velocityRight = 127;}
 
-    logger("Velocity 01 new value: "); logger(rSettings.velocity01); logger("\n");
-    logger("Velocity 02 new value: "); logger(rSettings.velocity02); logger("\n");
+    logger("Velocity 01 new value: "); logger(rSettings.velocityLeft); logger("\n");
+    logger("Velocity 02 new value: "); logger(rSettings.velocityRight); logger("\n");
 }
 RotaryControllerAdapter *ribbonAdapterRibbonVelocity = NULL;
 RotaryControllerAdapter *ribbonAdapterNOOP01 = NULL;
@@ -406,7 +409,11 @@ void setup()
             trellis.activateKey(x, y, SEESAW_KEYPAD_EDGE_RISING, true);
             trellis.activateKey(x, y, SEESAW_KEYPAD_EDGE_FALLING, true);
             trellis.registerCallback(x, y, trellisKeypress);
-            trellis.setPixelColor(x, y, getColor(x, y)); //addressed with x,y
+
+
+            // trellis.setPixelColor(x, y, getColor(x, y)); //addressed with x,y
+
+            trellis.setPixelColor(x, y, 0x000000); //addressed with x,y
 
             trellis.show(); //show all LEDs
             delay(50);
@@ -628,10 +635,12 @@ void resetRibbonStateNoteMode() {
     rSettings.analogScaleFactor = 10;
     rSettings.shouldIPlay = false;
 
-    rSettings.velocity01 = DEFAULT_RIBBON_VELOCITY;
-    rSettings.velocity02 = DEFAULT_RIBBON_VELOCITY;
-    rSettings.channel01 = 1;
-    rSettings.channel02 = 2;
+    rSettings.velocityLeft = DEFAULT_RIBBON_VELOCITY;
+    rSettings.velocityRight = DEFAULT_RIBBON_VELOCITY;
+    rSettings.channelLeft = 0;
+    rSettings.channelRight = 1;
+    rSettings.customLeft = 0;
+    rSettings.customRight = 0;
 
     rSettings.pitchBendMode = false;
 }
@@ -645,10 +654,12 @@ void resetRibbonStatePitchBendMode() {
     rSettings.analogScaleFactor = 10;
     rSettings.shouldIPlay = false;
 
-    rSettings.velocity01 = DEFAULT_RIBBON_VELOCITY;
-    rSettings.velocity02 = DEFAULT_RIBBON_VELOCITY;
-    rSettings.channel01 = 1;
-    rSettings.channel02 = 2;
+    rSettings.velocityLeft = DEFAULT_RIBBON_VELOCITY;
+    rSettings.velocityRight = DEFAULT_RIBBON_VELOCITY;
+    rSettings.channelLeft = 0;
+    rSettings.channelRight = 1;
+    rSettings.customLeft = 0;
+    rSettings.customRight = 0;
 
     rSettings.pitchBendMode = true;
 }
@@ -657,11 +668,14 @@ int readWiper() {
     return analogRead(POTPIN);
 }
 
-int scaleReadingNote(unsigned int reading) {
-    return (int)(reading * 0.125); // 128 / 1016
+byte scaleReadingNote(unsigned int reading) {
+    // return (int)(reading * 0.125); // 128 / 1016
+    uint8_t returnLow = 0 + rSettings.analogCutoff;
+    uint8_t returnHigh = 127 - rSettings.analogCutoff;
+    return map(reading, 0, 1015, returnLow, returnHigh);
 }
 
-int scaleReadingPitchBend(unsigned int reading) {
+byte scaleReadingPitchBend(unsigned int reading) {
     return map(reading, 0, 1015, 0, 127);
 }
 
@@ -670,7 +684,7 @@ void playWiper(unsigned int reading) {
     // pitchbend mode
     if (rSettings.pitchBendMode) {
 
-        int localNote = scaleReadingPitchBend(reading);
+        byte localNote = scaleReadingPitchBend(reading);
 
         // if (reading > rSettings.analogCutoff) {
 
@@ -695,13 +709,15 @@ void playWiper(unsigned int reading) {
     // note mode
     } else {
 
-        int localNote = scaleReadingNote(reading);
+        byte localNote = scaleReadingNote(reading);
 
         if (reading > rSettings.analogCutoff) {
 
             if (localNote != rSettings.lastWiperNote) {
-                noteOff(rSettings.lastWiperNote);
-                noteOn(localNote);
+                noteOff(rSettings.lastWiperNote, rSettings.velocityLeft, rSettings.channelLeft);
+                noteOff(rSettings.lastWiperNote, rSettings.velocityRight, rSettings.channelRight);
+                noteOn(localNote, rSettings.velocityLeft, rSettings.channelLeft);
+                noteOn(localNote, rSettings.velocityRight, rSettings.channelRight);
                 rSettings.shouldIPlay = false;
 
                 rSettings.lastWiperNote = localNote;
@@ -712,7 +728,8 @@ void playWiper(unsigned int reading) {
         } else {
 
             if (rSettings.shouldIPlay == false) {
-                noteOff(rSettings.lastWiperNote);
+                noteOff(rSettings.lastWiperNote, rSettings.velocityLeft, rSettings.channelLeft);
+                noteOff(rSettings.lastWiperNote, rSettings.velocityRight, rSettings.channelRight);
                 rSettings.shouldIPlay = true;
             }
         }
@@ -737,7 +754,7 @@ void resetKeypadState() {
     kSettings.inputMenu = 0;
 }
 
-uint16_t addZeroDigit(uint16_t number) {
+uint32_t addZeroDigit(uint16_t number) {
     long added;
     char str1[16] = "";
     char str2[16] = "";
@@ -745,7 +762,7 @@ uint16_t addZeroDigit(uint16_t number) {
     // could do a recursion trick here
 
     // sprintf(str, "%d", (int)number);
-    sprintf(str1, "%d0", (int)number);
+    sprintf(str1, "%d0", number);
     logger("  str1: ");
     logger(str1);
 
@@ -765,7 +782,7 @@ uint16_t addZeroDigit(uint16_t number) {
 
     
 
-    return (uint16_t)strtol(str1, NULL, 10);
+    return (uint32_t)strtol(str1, NULL, 10);
 }
 
 void processKey(char key) {
@@ -844,6 +861,13 @@ void processKey(char key) {
 // rotary service    //////////////////////////////////////////////////////////
 //
 
+//
+// midi services
+//
+
+void handleNoteOn(byte channel, byte note, byte velocity) {
+
+}
 
 //
 // midi delegates & handlers    //////////////////////////////////////////////////////////
@@ -851,7 +875,7 @@ void processKey(char key) {
 
 void midiBegin() {
     #ifndef LOGGING
-    MIDI.begin();
+    MIDI.begin(MIDI_CHANNEL_OMNI);
     #endif
 
     logger("MIDI.begin()");
@@ -860,7 +884,7 @@ void midiBegin() {
 
 void allOff() {
     #ifndef LOGGING
-    if (!shouldIPlay) {
+    if (!rSettings.shouldIPlay) {
         for (int c = 0; c < 16; c++) {
             MIDI.sendControlChange(123,0,c);
         }
@@ -872,9 +896,9 @@ void allOff() {
     logger("\n");
 }
 
-void noteOn(unsigned int noteNumber) {
+void noteOn(byte noteNumber, byte velocity, byte channel) {
     #ifndef LOGGING
-    MIDI.sendNoteOn(noteNumber, 127, 1);    // Send a Note 
+    MIDI.sendNoteOn(noteNumber, velocity, channel);    // Send a Note 
     #endif
 
     logger("noteNumber ON:");
@@ -882,9 +906,9 @@ void noteOn(unsigned int noteNumber) {
     logger("\n");
 }
 
-void noteOff(unsigned int noteNumber) {
+void noteOff(byte noteNumber, byte velocity, byte channel) {
     #ifndef LOGGING
-    MIDI.sendNoteOff(noteNumber, 0, 1);     // Stop the note
+    MIDI.sendNoteOff(noteNumber, 0, channel);     // Stop the note
     #endif
 
     logger("noteNumber OFF:");
