@@ -8,8 +8,8 @@
 
 #include "../colors.h"
 
-#define RIBBON_LED_PIN 22
-#define RIBBON_LED_LEN 11
+#define RIBBON_LED_PIN 2
+#define RIBBON_LED_LEN 3
 
 #define KEY_LED_PIN 23
 #define KEY_LED_LEN 49
@@ -51,6 +51,7 @@ StripNode * keyLEDNodes[KEY_LED_LEN];
 Adafruit_NeoPixel * strips[NUM_PIXEL_STRIPS];
 StripNode * stripNodes[NUM_PIXEL_STRIPS];
 
+bool dumbToggle = false;
 
 
 const byte txWordHeader = 0xFF;
@@ -210,6 +211,22 @@ void receiveEvent() {
     }
 }
 
+uint8_t loopCount = 0;
+uint8_t _draw_h = 0;
+uint8_t _draw_i = 0;
+uint8_t _draw_j = 0;
+uint8_t _draw_k = 0;
+
+
+void theaterChase() {
+    if (_draw_h < 10) {
+        if (_draw_i < 3) {
+
+        }
+    }
+}
+
+
 setup() {
     Serial.begin(9600);
     Serial.println("STARTING!\n");
@@ -226,10 +243,37 @@ setup() {
 
 
 loop() {
-    
+    if (dumbToggle) {
 
+    }
+    // theaterChase(WHITE, 50);
+
+    loopCount++;
+    if (loopCount > 99) loopCount = 0;
 }
 
+
+// //Theatre-style crawling lights.
+// void theaterChase(uint32_t c, uint8_t wait) {
+
+
+
+
+//   for (int j=0; j<10; j++) {  //do 10 cycles of chasing
+//     for (int q=0; q < 3; q++) {
+//       for (uint16_t i=0; i < strip.numPixels(); i=i+3) {
+//         strip.setPixelColor(i+q, c);    //turn every third pixel on
+//       }
+//       strip.show();
+
+//       delay(wait);
+
+//       for (uint16_t i=0; i < strip.numPixels(); i=i+3) {
+//         strip.setPixelColor(i+q, 0);        //turn every third pixel off
+//       }
+//     }
+//   }
+// }
 
 void logger(const char * s) {
     #ifdef LOGGING

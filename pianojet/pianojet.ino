@@ -32,7 +32,7 @@ Adafruit_NeoTrellis t_array[Y_TRELLIS/4][X_TRELLIS/4] = {
   
 };
 Adafruit_MultiTrellis trellis((Adafruit_NeoTrellis *)t_array, Y_TRELLIS/4, X_TRELLIS/4);
-const byte TRELLIS_MODE_COUNT = 7;
+const byte TRELLIS_MODE_COUNT = 8;
 const byte TRELLIS_STANDBY = 0;
 const byte TRELLIS_TOGGLE = 1;
 const byte TRELLIS_LOOP_OFF = 2;
