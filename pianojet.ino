@@ -2,6 +2,7 @@
 #include <Key.h>
 #include <Keypad.h>
 #include <Adafruit_NeoTrellis.h>
+#include <Adafruit_NeoPixel.h>
 
 #include <ClickEncoder.h>
 #include <TimerOne.h>
@@ -9,6 +10,7 @@
 
 
 #define POTPIN 14  //wiper
+#define RIBBON_LED_PIN 22
 // #define LOGGING true
 
 #define Y_TRELLIS 4
@@ -17,6 +19,35 @@
 //
 // definitions & types //////////////////////////////////////////////////////////
 //
+
+const uint32_t BLACK = 0x000000;
+const uint32_t RED = 0xFF0000;
+const uint32_t GREEN = 0x00FF00;
+const uint32_t LIGHTGREEN = 0xC8FFC8;
+const uint32_t DARKGREEN = 0x005500;
+const uint32_t BLUE = 0x0000FF;
+const uint32_t LIGHTBLUE = 0x000055;
+const uint32_t YELLOW = 0xFFFF00;
+const uint32_t TEAL = 0x00FFFF;
+const uint32_t PURPLE = 0xFF00FF;
+const uint32_t ORANGE = 0xFFA500;
+const uint32_t WHITE = 0xFFFFFF;
+
+//
+// neopixels
+//
+const byte RIBBON_LED_SIZE = 11;
+Adafruit_NeoPixel ribbonStrip;
+struct ColorNode {
+    ColorNode * next;
+    uint32_t color;
+};
+ColorNode * colorNodes[RIBBON_LED_SIZE];
+
+struct RibbonStripSettings {
+    void (*setupHandler)();
+    void (*loopHandler)();
+};
 
 //
 // Trellis
@@ -40,16 +71,6 @@ const byte TRELLIS_PRESSED_ON = 6;
 const byte TRELLIS_PRESSED_OFF = 7;
 
 
-const uint32_t RED = 0xFF0000;
-const uint32_t GREEN = 0x00FF00;
-const uint32_t LIGHTGREEN = 0xC8FFC8;
-const uint32_t DARKGREEN = 0x005500;
-const uint32_t BLUE = 0x0000FF;
-const uint32_t LIGHTBLUE = 0x000055;
-const uint32_t YELLOW = 0xFFFF00;
-const uint32_t TEAL = 0x00FFFF;
-const uint32_t PURPLE = 0xFF00FF;
-const uint32_t ORANGE = 0xFFA500;
 
 uint32_t colorMap[TRELLIS_MODE_COUNT];
 uint8_t trellisModeMatrix[Y_TRELLIS][X_TRELLIS];
@@ -288,11 +309,42 @@ RotaryControllerAdapter *ribbonAdapterNOOP03 = NULL;
 RotaryController *rotary[ROTARY_COUNT] = {NULL, NULL, NULL, NULL};
 
 
+RibbonStripSettings nSettings;
+void ribbonStripFn01() {
+    const int 
+    int j = 0;
+    for(j=0; j<256; j++) {
+        for(i=0; i<strip.numPixels(); i++) {
+            strip.setPixelColor(i, Wheel((i+j) & 255));
+        }
+        strip.show();
+    }
+}
+
+void ribbonStripAsc() {
+
+}
+
+void ribbonStripDesc() {
+
+}
+
+
+
 #ifndef LOGGING
 MIDI_CREATE_DEFAULT_INSTANCE();
 #endif
 
 void pianojetInit() {
+    // neopixels & LEDs
+    ribbonStrip = Adafruit_NeoPixel(RIBBON_LED_SIZE, RIBBON_LED_PIN, NEO_GRB + NEO_KHZ800);
+    
+    for(int i = 0; i < RIBBON_LED_SIZE; i++) {
+        colorNodes[i] = new ColorNode;
+        colorNodes[i]->color = BLACK;
+    }
+    
+
     // trellis
     colorMap[TRELLIS_STANDBY] = LIGHTGREEN;
     colorMap[TRELLIS_TOGGLE] = DARKGREEN;
@@ -534,6 +586,8 @@ void logger(const KeypadControllerSettings n) {
     Serial.print("\tinputNumber:    "); Serial.println(kSettings.inputNumber);
     #endif
 }
+
+
 
 //
 // trellis service
@@ -866,6 +920,30 @@ void processKey(char key) {
 //
 
 void handleNoteOn(byte channel, byte note, byte velocity) {
+    uint32_t color;
+    switch (channel) {
+        case 0:
+        case 1:
+        break;
+        case 2:
+        break;
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+        case 9:
+        case 10:
+        case 11:
+        case 12:
+        case 13:
+        case 14:
+        case 15:
+    }
+    if (channel == 2) {
+
+    }
 
 }
 
@@ -878,8 +956,15 @@ void midiBegin() {
     MIDI.begin(MIDI_CHANNEL_OMNI);
     #endif
 
-    logger("MIDI.begin()");
-    logger("\n");
+    logger("MIDI.begin()"); logger("\n");
+}
+
+void attachHandlers() {
+    #ifndef LOGGING
+    MIDI.setHandleNoteOn
+    #endif
+
+    logger("attachHandlers()"); logger("\n");
 }
 
 void allOff() {
