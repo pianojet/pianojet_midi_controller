@@ -8,10 +8,11 @@
 #include <TimerOne.h>
 #include <MIDI.h>
 
+#include "/Users/justintaylor/Documents/Arduino/pianojet/colors.h"
 
 #define POTPIN 14  //wiper
 #define RIBBON_LED_PIN 22
-// #define LOGGING true
+#define LOGGING true
 
 #define Y_TRELLIS 4
 #define X_TRELLIS 8
@@ -19,35 +20,6 @@
 //
 // definitions & types //////////////////////////////////////////////////////////
 //
-
-const uint32_t BLACK = 0x000000;
-const uint32_t RED = 0xFF0000;
-const uint32_t GREEN = 0x00FF00;
-const uint32_t LIGHTGREEN = 0xC8FFC8;
-const uint32_t DARKGREEN = 0x005500;
-const uint32_t BLUE = 0x0000FF;
-const uint32_t LIGHTBLUE = 0x000055;
-const uint32_t YELLOW = 0xFFFF00;
-const uint32_t TEAL = 0x00FFFF;
-const uint32_t PURPLE = 0xFF00FF;
-const uint32_t ORANGE = 0xFFA500;
-const uint32_t WHITE = 0xFFFFFF;
-
-//
-// neopixels
-//
-const byte RIBBON_LED_SIZE = 11;
-Adafruit_NeoPixel ribbonStrip;
-struct ColorNode {
-    ColorNode * next;
-    uint32_t color;
-};
-ColorNode * colorNodes[RIBBON_LED_SIZE];
-
-struct RibbonStripSettings {
-    void (*setupHandler)();
-    void (*loopHandler)();
-};
 
 //
 // Trellis
@@ -70,17 +42,8 @@ const byte TRELLIS_TRIGGER_CUED = 5;
 const byte TRELLIS_PRESSED_ON = 6;
 const byte TRELLIS_PRESSED_OFF = 7;
 
-
-
 uint32_t colorMap[TRELLIS_MODE_COUNT];
 uint8_t trellisModeMatrix[Y_TRELLIS][X_TRELLIS];
-// uint8_t trellisModeMatrix[Y_TRELLIS][X_TRELLIS] = {
-//     {TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY},
-//     {TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY},
-//     {TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY},
-//     {TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY, TRELLIS_STANDBY}
-// };
-
 
 //
 // Ribbon
@@ -309,26 +272,6 @@ RotaryControllerAdapter *ribbonAdapterNOOP03 = NULL;
 RotaryController *rotary[ROTARY_COUNT] = {NULL, NULL, NULL, NULL};
 
 
-RibbonStripSettings nSettings;
-void ribbonStripFn01() {
-    const int 
-    int j = 0;
-    for(j=0; j<256; j++) {
-        for(i=0; i<strip.numPixels(); i++) {
-            strip.setPixelColor(i, Wheel((i+j) & 255));
-        }
-        strip.show();
-    }
-}
-
-void ribbonStripAsc() {
-
-}
-
-void ribbonStripDesc() {
-
-}
-
 
 
 #ifndef LOGGING
@@ -336,15 +279,6 @@ MIDI_CREATE_DEFAULT_INSTANCE();
 #endif
 
 void pianojetInit() {
-    // neopixels & LEDs
-    ribbonStrip = Adafruit_NeoPixel(RIBBON_LED_SIZE, RIBBON_LED_PIN, NEO_GRB + NEO_KHZ800);
-    
-    for(int i = 0; i < RIBBON_LED_SIZE; i++) {
-        colorNodes[i] = new ColorNode;
-        colorNodes[i]->color = BLACK;
-    }
-    
-
     // trellis
     colorMap[TRELLIS_STANDBY] = LIGHTGREEN;
     colorMap[TRELLIS_TOGGLE] = DARKGREEN;
@@ -604,21 +538,6 @@ uint8_t getTrellisMode(uint8_t x, uint8_t y) {
 
 void setTrellisMode(uint8_t x, uint8_t y, uint8_t mode) {
     trellisModeMatrix[y][x] = mode;
-}
-
-// Input a value 0 to 255 to get a color value.
-// The colors are a transition r - g - b - back to r.
-uint32_t Wheel(byte WheelPos) {
-  if(WheelPos < 85) {
-   return seesaw_NeoPixel::Color(WheelPos * 3, 255 - WheelPos * 3, 0);
-  } else if(WheelPos < 170) {
-   WheelPos -= 85;
-   return seesaw_NeoPixel::Color(255 - WheelPos * 3, 0, WheelPos * 3);
-  } else {
-   WheelPos -= 170;
-   return seesaw_NeoPixel::Color(0, WheelPos * 3, 255 - WheelPos * 3);
-  }
-  return 0;
 }
 
 void trellisKeypress(keyEvent evt) {
@@ -920,30 +839,31 @@ void processKey(char key) {
 //
 
 void handleNoteOn(byte channel, byte note, byte velocity) {
-    uint32_t color;
-    switch (channel) {
-        case 0:
-        case 1:
-        break;
-        case 2:
-        break;
-        case 3:
-        case 4:
-        case 5:
-        case 6:
-        case 7:
-        case 8:
-        case 9:
-        case 10:
-        case 11:
-        case 12:
-        case 13:
-        case 14:
-        case 15:
-    }
-    if (channel == 2) {
 
-    }
+    // uint32_t color;
+    // switch (channel) {
+    //     case 0:
+    //     case 1:
+    //     break;
+    //     case 2:
+    //     break;
+    //     case 3:
+    //     case 4:
+    //     case 5:
+    //     case 6:
+    //     case 7:
+    //     case 8:
+    //     case 9:
+    //     case 10:
+    //     case 11:
+    //     case 12:
+    //     case 13:
+    //     case 14:
+    //     case 15:
+    // }
+    // if (channel == 2) {
+
+    // }
 
 }
 
@@ -961,7 +881,7 @@ void midiBegin() {
 
 void attachHandlers() {
     #ifndef LOGGING
-    MIDI.setHandleNoteOn
+    MIDI.setHandleNoteOn(handleNoteOn);
     #endif
 
     logger("attachHandlers()"); logger("\n");
