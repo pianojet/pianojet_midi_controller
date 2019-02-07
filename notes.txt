@@ -1,0 +1,66 @@
+########################################################################
+####################          HARDWARE          ########################
+########################################################################
+
+# Board comparison
+https://www.sparkfun.com/standard_arduino_comparison_guide
+
+
+# Rotary Encoder
+https://learn.adafruit.com/rotary-encoder/hardware
+
+# Trellis (Launchpad custom)
+https://learn.adafruit.com/adafruit-trellis-diy-open-source-led-keypad/connecting
+
+# Ribbon Controller
+http://synthhacker.blogspot.com/2016/03/diy-midi-ribbon-controller.html
+
+# LCD Screen
+https://learn.adafruit.com/character-lcds/wiring-a-character-lcd
+
+# NeoPixel Guide
+https://learn.adafruit.com/adafruit-neopixel-uberguide/the-magic-of-neopixels
+
+
+
+
+
+
+
+########################################################################
+####################            DAW             ########################
+########################################################################
+
+# Sounds
+splice.com
+
+
+# Reverb
+https://www.eventideaudio.com/
+https://lexiconpro.com/en
+
+
+
+
+########################################################################
+####################          PRACTICE          ########################
+########################################################################
+
+
+
+
+
+
+########################################################################
+####################          SOFTWARE          ########################
+########################################################################
+
+https://github.com/FortySevenEffects/arduino_midi_library/
+http://fortyseveneffects.github.io/arduino_midi_library/
+
+http://www.coagula.org/albedo/coagula-midi-ribbon-controller-2-0-2/
+http://www.coagula.org/albedo/source/MIDI_Ribbon_Controller_2.pde
+
+
+
+
